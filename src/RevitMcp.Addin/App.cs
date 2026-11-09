@@ -86,11 +86,11 @@ public class App : IExternalApplication
 
         string assemblyPath = Assembly.GetExecutingAssembly().Location;
 
-        // 1. Panel "Integración MCP" (Conexión MCP)
+        // 1. Panel "Integración MCP" (Botón MCP)
         var mcpPanel = GetOrCreatePanel(application, tabName, "Integración MCP");
         var mcpButtonData = new PushButtonData(
             "McpServerStatusBtn",
-            "Conexión\nMCP",
+            "\nMCP",
             assemblyPath,
             typeof(ShowMcpStatusCmd).FullName)
         {
