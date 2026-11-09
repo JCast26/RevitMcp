@@ -1,0 +1,34 @@
+## Visual Studio / .NET .gitignore
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio cache & temp
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+build/
+bld/
+
+# JetBrains Rider / VS Code
+.idea/
+.vscode/
+*.swp
+*~
+
+# Revit backup files and journals
+*.*.????.rvt
+*.*.????.rfa
+journal.*.txt
+
+# Scratch / temporary scripts
+scratch/

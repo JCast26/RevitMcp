@@ -1,0 +1,217 @@
+<Window x:Class="RevitMcp.Addin.UI.BeamStirrupsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="BIM Suite - Estribos en Vigas"
+        Height="680" Width="480"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Background="#F3F4F6"
+        FontFamily="Segoe UI"
+        FontSize="13">
+
+    <Window.Resources>
+        <Style TargetType="GroupBox">
+            <Setter Property="Margin" Value="0,0,0,12"/>
+            <Setter Property="Padding" Value="10"/>
+            <Setter Property="BorderBrush" Value="#D1D5DB"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#1F2937"/>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Padding" Value="6,2"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="FontWeight" Value="Normal"/>
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="FontWeight" Value="Normal"/>
+        </Style>
+
+        <Style TargetType="Label">
+            <Setter Property="Foreground" Value="#374151"/>
+            <Setter Property="Padding" Value="0,2,0,2"/>
+            <Setter Property="FontWeight" Value="Normal"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/> <!-- Header -->
+            <RowDefinition Height="Auto"/> <!-- Diagram banner -->
+            <RowDefinition Height="*"/>    <!-- Content controls -->
+            <RowDefinition Height="Auto"/> <!-- Action Buttons -->
+        </Grid.RowDefinitions>
+
+        <!-- 1. Header con Branding BIM Suite -->
+        <Border Grid.Row="0" Background="#0078D7" CornerRadius="6" Padding="12,10" Margin="0,0,0,12">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="🏛️" FontSize="20" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <StackPanel>
+                    <TextBlock Text="BIM Suite - Estribos en Vigas" FontSize="15" FontWeight="Bold" Foreground="#FFFFFF"/>
+                    <TextBlock Text="Detallamiento sismorresistente automatizado (3 zonas)" FontSize="11" Foreground="#E0F2FE"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- 2. Diagrama visual resumen del esquema -->
+        <Border Grid.Row="1" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="8,6" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="Esquema: [ 1 @ S₀ ] [ N₁ @ S₁ ]  ◄──  resto @ S₂  ──►  [ N₃ @ S₃ ] [ 1 @ S₀ ]" 
+                           FontSize="11" FontWeight="SemiBold" Foreground="#0284C7" HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- 3. Formulario Scrollable -->
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+
+                <!-- Grupo Selección de Vigas -->
+                <GroupBox Header="1. Selección de Viga(s) Anfitriona(s)">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="lblSelectionStatus" Text="0 viga(s) seleccionada(s)" 
+                                   VerticalAlignment="Center" Foreground="#4B5563" FontWeight="SemiBold"/>
+                        <Button x:Name="btnPickBeams" Grid.Column="1" Content="Seleccionar en Revit" 
+                                Width="140" Height="28" Background="#F1F5F9" BorderBrush="#CBD5E1" 
+                                Click="BtnPickBeams_Click" Cursor="Hand"/>
+                    </Grid>
+                </GroupBox>
+
+                <!-- Grupo Propiedades de Armadura -->
+                <GroupBox Header="2. Propiedades del Estribo">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="150"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Label Grid.Row="0" Grid.Column="0" Content="Diámetro de Barra:"/>
+                        <ComboBox x:Name="cbBarType" Grid.Row="0" Grid.Column="1" Margin="0,0,0,8"/>
+
+                        <Label Grid.Row="1" Grid.Column="0" Content="Forma de Estribo:"/>
+                        <ComboBox x:Name="cbShape" Grid.Row="1" Grid.Column="1"/>
+                    </Grid>
+                </GroupBox>
+
+                <!-- Grupo Configuración de Espaciamientos -->
+                <GroupBox Header="3. Distribución de Espaciamientos (3 Zonas)">
+                    <StackPanel>
+                        <!-- Offset primer estribo -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="100"/>
+                            </Grid.ColumnDefinitions>
+                            <Label Content="Distancia primer estribo a apoyo S₀ (cm):"/>
+                            <TextBox x:Name="txtS0" Grid.Column="1" Text="5.0" HorizontalContentAlignment="Center"/>
+                        </Grid>
+
+                        <!-- Zona 1: Confinamiento Inicial -->
+                        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,8">
+                            <StackPanel>
+                                <TextBlock Text="Zona 1: Confinamiento Inicial (Number with Spacing)" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,6"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="70"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="70"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Label Grid.Column="0" Content="Cantidad N₁:"/>
+                                    <TextBox x:Name="txtN1" Grid.Column="1" Text="6" HorizontalContentAlignment="Center"/>
+
+                                    <Label Grid.Column="2" Content="Espacio S₁ (cm):" Margin="8,0,0,0"/>
+                                    <TextBox x:Name="txtS1" Grid.Column="3" Text="10.0" HorizontalContentAlignment="Center"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Zona 2: Tramo Central -->
+                        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="70"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Zona 2: Tramo Central / Resto (Maximum Spacing)" FontWeight="SemiBold" Foreground="#334155"/>
+                                    <TextBlock Text="Distribuye uniformemente sin duplicar estribos extremos" FontSize="11" Foreground="#64748B"/>
+                                </StackPanel>
+                                <TextBox x:Name="txtS2" Grid.Column="1" Text="20.0" HorizontalContentAlignment="Center" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Zona 3: Confinamiento Final -->
+                        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="4" Padding="8">
+                            <StackPanel>
+                                <DockPanel Margin="0,0,0,6">
+                                    <TextBlock Text="Zona 3: Confinamiento Final" FontWeight="SemiBold" Foreground="#334155"/>
+                                    <CheckBox x:Name="chkSymmetric" Content="Simétrico al extremo inicial" IsChecked="True" 
+                                              HorizontalAlignment="Right" Checked="ChkSymmetric_Changed" Unchecked="ChkSymmetric_Changed"/>
+                                </DockPanel>
+                                <Grid x:Name="gridZone3Custom" IsEnabled="False">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="70"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="70"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Label Grid.Column="0" Content="Cantidad N₃:"/>
+                                    <TextBox x:Name="txtN3" Grid.Column="1" Text="6" HorizontalContentAlignment="Center"/>
+
+                                    <Label Grid.Column="2" Content="Espacio S₃ (cm):" Margin="8,0,0,0"/>
+                                    <TextBox x:Name="txtS3" Grid.Column="3" Text="10.0" HorizontalContentAlignment="Center"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </GroupBox>
+
+                <!-- Opciones avanzadas y complementarias -->
+                <GroupBox Header="4. Opciones Avanzadas">
+                    <StackPanel>
+                        <CheckBox x:Name="chkNormative" Content="Sugerir confinamiento sismorresistente (Lc = 2h)" Margin="0,0,0,6" Checked="ChkNormative_Checked"/>
+                        <CheckBox x:Name="chkLongitudinal" Content="Preparar refuerzo longitudinal base (superior/inferior)"/>
+                    </StackPanel>
+                </GroupBox>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- 4. Botones de Acción -->
+        <Border Grid.Row="3" Padding="0,10,0,0" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Button Content="Cancelar" Width="90" Height="32" Grid.Column="1" Margin="0,0,8,0"
+                        Background="#FFFFFF" BorderBrush="#CBD5E1" Click="BtnCancel_Click" Cursor="Hand"/>
+
+                <Button x:Name="btnApply" Content="Crear Estribos" Width="130" Height="32" Grid.Column="2"
+                        Background="#0078D7" Foreground="#FFFFFF" FontWeight="Bold" BorderThickness="0"
+                        Click="BtnApply_Click" Cursor="Hand"/>
+            </Grid>
+        </Border>
+
+    </Grid>
+</Window>

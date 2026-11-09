@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>Revit MCP Integration</Name>
+    <Assembly>RevitMcp.Addin.dll</Assembly>
+    <FullClassName>RevitMcp.Addin.App</FullClassName>
+    <ClientId>8F40C55A-B9F2-4F1E-9C8F-787F63DE615C</ClientId>
+    <VendorId>BIMSuite</VendorId>
+    <VendorDescription>BIM Suite - MCP AI Integration for Autodesk Revit</VendorDescription>
+  </AddIn>
+</RevitAddIns>

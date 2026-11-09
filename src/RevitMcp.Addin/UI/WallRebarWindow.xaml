@@ -1,0 +1,598 @@
+<Window x:Class="RevitMcp.Addin.UI.WallRebarWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="BIM Suite - Acero en Muros"
+        Height="720" Width="530"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Background="#F3F4F6"
+        FontFamily="Segoe UI"
+        FontSize="13">
+
+    <Window.Resources>
+        <Style TargetType="GroupBox">
+            <Setter Property="Margin" Value="0,0,0,12"/>
+            <Setter Property="Padding" Value="10"/>
+            <Setter Property="BorderBrush" Value="#D1D5DB"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#1F2937"/>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Padding" Value="6,2"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="FontWeight" Value="Normal"/>
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="FontWeight" Value="Normal"/>
+        </Style>
+
+        <Style TargetType="Label">
+            <Setter Property="Foreground" Value="#374151"/>
+            <Setter Property="Padding" Value="0,2,0,2"/>
+            <Setter Property="FontWeight" Value="Normal"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/> <!-- Header -->
+            <RowDefinition Height="*"/>    <!-- Content controls -->
+            <RowDefinition Height="Auto"/> <!-- Action Buttons -->
+        </Grid.RowDefinitions>
+
+        <!-- 1. Header con Branding BIM Suite -->
+        <Border Grid.Row="0" Background="#0078D7" CornerRadius="6" Padding="12,10" Margin="0,0,0,12">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="🧱" FontSize="20" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <StackPanel>
+                    <TextBlock Text="BIM Suite - Acero en Muros" FontSize="15" FontWeight="Bold" Foreground="#FFFFFF"/>
+                    <TextBlock Text="Modelado paramétrico de mallas de armadura" FontSize="11" Foreground="#E0F2FE"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- 2. Formulario Scrollable -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+
+                <!-- Grupo Selección de Muros -->
+                <GroupBox Header="1. Selección de Muro(s) Anfitrión(es)">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="lblSelectionStatus" Text="0 muros seleccionados (requerido)" 
+                                   VerticalAlignment="Center" Foreground="#4B5563" FontWeight="SemiBold"
+                                   TextWrapping="Wrap" Margin="0,0,8,0"/>
+                        <Button x:Name="btnPickWalls" Grid.Column="1" Content="Seleccionar en Revit" 
+                                Width="140" Height="28" Background="#F1F5F9" BorderBrush="#CBD5E1" 
+                                Click="BtnPickWalls_Click" Cursor="Hand"/>
+                    </Grid>
+                </GroupBox>
+
+                <!-- Grupo Configuración de Malla -->
+                <GroupBox Header="2. Configuración de Malla">
+                    <Grid Margin="0,2,0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="140"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Label Content="Número de Mallas:" VerticalAlignment="Center"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <RadioButton x:Name="rbTwoMeshes" Content="2 Mallas (Doble cara)" IsChecked="True" 
+                                         Margin="0,0,16,0" Checked="RbMeshes_Changed"/>
+                            <RadioButton x:Name="rbOneMesh" Content="1 Malla (Central)" 
+                                         Checked="RbMeshes_Changed"/>
+                        </StackPanel>
+                    </Grid>
+                </GroupBox>
+
+                <!-- Grupo Propiedades de Armadura -->
+                <GroupBox Header="3. Refuerzo Vertical y Horizontal">
+                    <StackPanel>
+                        <!-- Refuerzo Vertical -->
+                        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,8">
+                            <StackPanel>
+                                <TextBlock Text="Refuerzo Vertical" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,6"/>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="100"/>
+                                        <ColumnDefinition Width="70"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Label Grid.Column="0" Content="Barra:"/>
+                                    <ComboBox x:Name="cbVerticalBar" Grid.Column="1" Margin="0,0,8,0"/>
+
+                                    <Label Grid.Column="2" Content="Espacio Sv (cm):"/>
+                                    <TextBox x:Name="txtVerticalSpacing" Grid.Column="3" Text="20.0" HorizontalContentAlignment="Center"/>
+                                </Grid>
+
+                                <Grid x:Name="gridVerticalHook" Margin="0,2,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="65"/>
+                                        <ColumnDefinition Width="95"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Label Grid.Column="0" Content="Gancho:"/>
+                                    <ComboBox x:Name="cbVerticalHook" Grid.Column="1" Margin="0,0,8,0" SelectionChanged="CbVerticalHook_SelectionChanged"/>
+
+                                    <Label Grid.Column="2" Content="Extremo:"/>
+                                    <ComboBox x:Name="cbVerticalHookPosition" Grid.Column="3" IsEnabled="False">
+                                        <ComboBoxItem Content="Superior" IsSelected="True" ToolTip="Gancho en cabeza de muro / coronación"/>
+                                        <ComboBoxItem Content="Ambos" ToolTip="Ganchos en ambos extremos"/>
+                                        <ComboBoxItem Content="Inferior" ToolTip="Gancho en arranque de muro"/>
+                                    </ComboBox>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Refuerzo Horizontal -->
+                        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="4" Padding="8">
+                            <StackPanel>
+                                <TextBlock Text="Refuerzo Horizontal" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,6"/>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="100"/>
+                                        <ColumnDefinition Width="70"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Label Grid.Column="0" Content="Barra:"/>
+                                    <ComboBox x:Name="cbHorizontalBar" Grid.Column="1" Margin="0,0,8,0"/>
+
+                                    <Label Grid.Column="2" Content="Espacio Sh (cm):"/>
+                                    <TextBox x:Name="txtHorizontalSpacing" Grid.Column="3" Text="20.0" HorizontalContentAlignment="Center"/>
+                                </Grid>
+
+                                <Grid x:Name="gridHorizontalHook" Margin="0,2,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Label Grid.Column="0" Content="Gancho:"/>
+                                    <ComboBox x:Name="cbHorizontalHook" Grid.Column="1"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </GroupBox>
+
+                <!-- Grupo Disposición y Recubrimiento -->
+                <GroupBox Header="4. Disposición y Recubrimiento">
+                    <StackPanel>
+                        <CheckBox x:Name="chkUseWallCover" Content="Obtener recubrimiento asignado al muro anfitrión" 
+                                  IsChecked="True" FontWeight="SemiBold" Foreground="#1F2937" Margin="0,0,0,8" 
+                                  Checked="ChkUseWallCover_Changed" Unchecked="ChkUseWallCover_Changed"/>
+
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="70"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Label Grid.Column="0" Content="Recubrimiento libre de concreto (cm):"/>
+                            <TextBox x:Name="txtCover" Grid.Column="1" Text="2.5" HorizontalContentAlignment="Center"/>
+                            <Button x:Name="btnReadWallCover" Grid.Column="2" Content="Detectar del Muro" Width="120" Height="28" 
+                                    Margin="8,0,0,0" Background="#F1F5F9" BorderBrush="#CBD5E1" 
+                                    Click="BtnReadWallCover_Click" Cursor="Hand" ToolTip="Lee el recubrimiento de caras asignado en el muro seleccionado"/>
+                        </Grid>
+
+                        <TextBlock x:Name="lblCoverInfo" Text="Recubrimiento detectado del muro: 2.5 cm" FontSize="11" 
+                                   Foreground="#0284C7" Margin="0,0,0,8"/>
+
+                        <CheckBox x:Name="chkHorizOutside" 
+                                  Content="Barras horizontales por la cara exterior (recomendado)" IsChecked="True"/>
+                    </StackPanel>
+                </GroupBox>
+
+                <!-- Grupo Detalles Adicionales y Confinamiento -->
+                <GroupBox Header="5. Detalles Especiales (Grapas y Confinamiento)">
+                    <StackPanel>
+                        <!-- Grapas transversales -->
+                        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,8">
+                            <StackPanel>
+                                <CheckBox x:Name="chkCrossties" Content="Incluir grapas transversales (crossties) entre mallas" 
+                                          FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,8"
+                                          Checked="ChkCrossties_Changed" Unchecked="ChkCrossties_Changed"/>
+
+                                <Grid x:Name="gridCrosstieControls" Margin="0,2,0,0">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="60"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="105"/>
+                                        <ColumnDefinition Width="70"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Fila 0: Barra y Espaciamiento Vertical -->
+                                    <Label Grid.Row="0" Grid.Column="0" Content="Barra:"/>
+                                    <ComboBox x:Name="cbCrosstieBar" Grid.Row="0" Grid.Column="1" Margin="0,0,8,6" IsEnabled="False"/>
+
+                                    <Label Grid.Row="0" Grid.Column="2" Content="Espacio Sv (cm):"/>
+                                    <TextBox x:Name="txtCrosstieSpacing" Grid.Row="0" Grid.Column="3" Text="40.0" HorizontalContentAlignment="Center" 
+                                             Margin="0,0,0,6" IsEnabled="False" ToolTip="Espaciamiento vertical máximo entre grapas en altura/elevación (cm)"/>
+
+                                    <!-- Fila 1: Distribución en Planta (Horizontal) -->
+                                    <Label Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Content="Distribución en planta:" Margin="0,0,0,6"/>
+                                    <ComboBox x:Name="cbCrosstiePattern" Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="2" Margin="0,0,0,6" IsEnabled="False"
+                                              ToolTip="Frecuencia longitudinal con la que las grapas confinan a los aceros verticales">
+                                        <ComboBoxItem Content="Dejando 1 barra (alternada)" IsSelected="True" ToolTip="Coloca grapas cada 2 barras verticales"/>
+                                        <ComboBoxItem Content="Dejando 2 barras" ToolTip="Coloca grapas cada 3 barras verticales"/>
+                                        <ComboBoxItem Content="En cada barra (consecutiva)" ToolTip="Coloca grapas en todas las barras verticales"/>
+                                    </ComboBox>
+
+                                    <!-- Fila 2: Configuración de Ganchos -->
+                                    <Label Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Content="Ganchos en extremos:"/>
+                                    <ComboBox x:Name="cbCrosstieHooks" Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="2" IsEnabled="False"
+                                              ToolTip="Ángulo de doblado de los ganchos en ambos extremos de la grapa transversal">
+                                        <ComboBoxItem Content="Ambos a 135° (135° - 135°)" IsSelected="True" ToolTip="Gancho sísmico de 135° en ambos extremos"/>
+                                        <ComboBoxItem Content="Combinado (135° y 90°)" ToolTip="Un extremo a 135° y el otro a 90°"/>
+                                        <ComboBoxItem Content="Ambos a 90° (90° - 90°)" ToolTip="Gancho estándar de 90° en ambos extremos"/>
+                                        <ComboBoxItem Content="Ambos a 180° (180° - 180°)" ToolTip="Gancho cerrado de 180° en ambos extremos"/>
+                                    </ComboBox>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Elementos de borde (cabezales sísmicos) -->
+                        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="4" Padding="8">
+                            <StackPanel>
+                                <CheckBox x:Name="chkBoundaryElements" Content="Incluir elementos de borde confinados (Boundary Elements / Cabezales)" 
+                                          FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,8"
+                                          Checked="ChkBoundaryElements_Changed" Unchecked="ChkBoundaryElements_Changed"/>
+
+                                <Grid x:Name="gridBoundaryControls" IsEnabled="False">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="70"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="70"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Label Grid.Column="0" Content="Longitud Borde (cm):"/>
+                                    <TextBox x:Name="txtBoundaryLength" Grid.Column="1" Text="40.0" HorizontalContentAlignment="Center"/>
+
+                                    <Label Grid.Column="2" Content="Espacio Estribo (cm):" Margin="8,0,0,0"/>
+                                    <TextBox x:Name="txtBoundarySpacing" Grid.Column="3" Text="10.0" HorizontalContentAlignment="Center"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </GroupBox>
+
+                <!-- Grupo 5.1: Muro Inclinado de Escalera (Varying Rebar Set) -->
+                <GroupBox x:Name="grpInclinedStair" Header="Muro Inclinado de Escalera (Varying Rebar Set)" Visibility="Collapsed">
+                    <StackPanel>
+                        <!-- Esquema Interactivo en Tiempo Real -->
+                        <Border Background="#FFFFFF" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="Esquema Interactivo de Muro Inclinado (Escalera)" FontSize="11.5" FontWeight="SemiBold" 
+                                           Foreground="#334155" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+
+                                <Viewbox Height="175" HorizontalAlignment="Center" Stretch="Uniform">
+                                    <Canvas x:Name="cvsInclinedStair" Width="400" Height="180" Background="#F8FAFC" ClipToBounds="True">
+                                        <!-- Contorno de Muro Inclinado -->
+                                        <Polygon x:Name="polyInclinedWall" Points="25,160 375,160 375,115 25,35" 
+                                                 Fill="#EFECE6" Stroke="#64748B" StrokeThickness="1.5"/>
+
+                                        <!-- Capas dinámicas -->
+                                        <Canvas x:Name="vizInclinedVertBars"/>
+                                        <Canvas x:Name="vizInclinedHorizBars"/>
+                                        <Canvas x:Name="vizInclinedTopBar"/>
+                                    </Canvas>
+                                </Viewbox>
+
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,6,0,0">
+                                    <Line X1="0" Y1="6" X2="14" Y2="6" Stroke="#0284C7" StrokeThickness="2.5" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Verticales (Varying Set)" FontSize="10.5" Foreground="#334155" Margin="4,0,14,0"/>
+                                    <Line X1="0" Y1="6" X2="14" Y2="6" Stroke="#16A34A" StrokeThickness="2.0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Horizontales (Long. Variable)" FontSize="10.5" Foreground="#334155" Margin="4,0,14,0"/>
+                                    <Line X1="0" Y1="6" X2="14" Y2="6" Stroke="#DC2626" StrokeThickness="2.5" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Dintel Inclinado" FontSize="10.5" Foreground="#334155"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Opciones de Refuerzo de Dintel Inclinado -->
+                        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="4" Padding="8">
+                            <StackPanel>
+                                <CheckBox x:Name="chkIncludeInclinedTopBar" Content="Incluir barra perimetral superior (dintel inclinado)"
+                                          IsChecked="True" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,8"
+                                          Checked="InclinedStairOptions_Changed" Unchecked="InclinedStairOptions_Changed"/>
+
+                                <Grid x:Name="gridInclinedTopBar">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Label Grid.Column="0" Content="Barra dintel superior:"/>
+                                    <ComboBox x:Name="cbInclinedTopBar" Grid.Column="1"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </GroupBox>
+
+                <!-- Grupo 6: Aberturas y Refuerzo de Vanos (Visible solo cuando hay aberturas detectadas) -->
+                <GroupBox x:Name="grpOpenings" Header="6. Aberturas y Refuerzo de Vanos" Visibility="Collapsed">
+                    <StackPanel>
+
+                        <!-- Esquema Interactivo en Tiempo Real -->
+                        <Border Background="#FFFFFF" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="Esquema Interactivo de Refuerzo en Aberturas" FontSize="11.5" FontWeight="SemiBold" 
+                                           Foreground="#334155" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+
+                                <Viewbox Height="175" HorizontalAlignment="Center" Stretch="Uniform">
+                                    <Canvas Width="420" Height="185" Background="#F8FAFC" ClipToBounds="True">
+                                        <!-- Contorno del Muro -->
+                                        <Rectangle Canvas.Left="10" Canvas.Top="5" Width="400" Height="175" 
+                                                   Fill="#EFECE6" Stroke="#64748B" StrokeThickness="1.5"/>
+
+                                        <!-- Malla Base Vertical (Izquierda y Derecha continuas, Centro interrumpido por el vano) -->
+                                        <Line X1="40" Y1="8" X2="40" Y2="177" Stroke="#94A3B8" StrokeThickness="1" StrokeDashArray="3,2"/>
+                                        <Line X1="70" Y1="8" X2="70" Y2="177" Stroke="#94A3B8" StrokeThickness="1" StrokeDashArray="3,2"/>
+                                        <Line X1="100" Y1="8" X2="100" Y2="177" Stroke="#94A3B8" StrokeThickness="1" StrokeDashArray="3,2"/>
+                                        <!-- Verticales cortadas sobre y bajo el vano -->
+                                        <Line X1="160" Y1="8" X2="160" Y2="60" Stroke="#94A3B8" StrokeThickness="1" StrokeDashArray="3,2"/>
+                                        <Line X1="160" Y1="129" X2="160" Y2="177" Stroke="#94A3B8" StrokeThickness="1" StrokeDashArray="3,2"/>
+                                        <Line X1="205" Y1="8" X2="205" Y2="60" Stroke="#94A3B8" StrokeThickness="1" StrokeDashArray="3,2"/>
+                                        <Line X1="205" Y1="129" X2="205" Y2="177" Stroke="#94A3B8" StrokeThickness="1" StrokeDashArray="3,2"/>
+                                        <Line X1="250" Y1="8" X2="250" Y2="60" Stroke="#94A3B8" StrokeThickness="1" StrokeDashArray="3,2"/>
+                                        <Line X1="250" Y1="129" X2="250" Y2="177" Stroke="#94A3B8" StrokeThickness="1" StrokeDashArray="3,2"/>
+                                        <!-- Derecha continuas -->
+                                        <Line X1="310" Y1="8" X2="310" Y2="177" Stroke="#94A3B8" StrokeThickness="1" StrokeDashArray="3,2"/>
+                                        <Line X1="340" Y1="8" X2="340" Y2="177" Stroke="#94A3B8" StrokeThickness="1" StrokeDashArray="3,2"/>
+                                        <Line X1="370" Y1="8" X2="370" Y2="177" Stroke="#94A3B8" StrokeThickness="1" StrokeDashArray="3,2"/>
+
+                                        <!-- Malla Base Horizontal (Superior e Inferior continuas, Centro interrumpido por el vano) -->
+                                        <Line X1="15" Y1="20" X2="405" Y2="20" Stroke="#94A3B8" StrokeThickness="1" StrokeDashArray="3,2"/>
+                                        <Line X1="15" Y1="167" X2="405" Y2="167" Stroke="#94A3B8" StrokeThickness="1" StrokeDashArray="3,2"/>
+                                        <!-- Horizontales cortadas a los lados del vano -->
+                                        <Line X1="15" Y1="76" X2="132" Y2="76" Stroke="#94A3B8" StrokeThickness="1" StrokeDashArray="3,2"/>
+                                        <Line X1="278" Y1="76" X2="405" Y2="76" Stroke="#94A3B8" StrokeThickness="1" StrokeDashArray="3,2"/>
+                                        <Line X1="15" Y1="94" X2="132" Y2="94" Stroke="#94A3B8" StrokeThickness="1" StrokeDashArray="3,2"/>
+                                        <Line X1="278" Y1="94" X2="405" Y2="94" Stroke="#94A3B8" StrokeThickness="1" StrokeDashArray="3,2"/>
+                                        <Line X1="15" Y1="112" X2="132" Y2="112" Stroke="#94A3B8" StrokeThickness="1" StrokeDashArray="3,2"/>
+                                        <Line X1="278" Y1="112" X2="405" Y2="112" Stroke="#94A3B8" StrokeThickness="1" StrokeDashArray="3,2"/>
+
+                                        <!-- Vano / Abertura Central -->
+                                        <Rectangle Canvas.Left="135" Canvas.Top="62" Width="140" Height="65" 
+                                                   Fill="#FFFFFF" Stroke="#475569" StrokeThickness="1.5"/>
+                                        <Line X1="135" Y1="62" X2="275" Y2="127" Stroke="#CBD5E1" StrokeThickness="1" StrokeDashArray="4,2"/>
+                                        <Line X1="275" Y1="62" X2="135" Y2="127" Stroke="#CBD5E1" StrokeThickness="1" StrokeDashArray="4,2"/>
+                                        <Border Canvas.Left="163" Canvas.Top="85" Background="#F1F5F9" CornerRadius="3" Padding="6,2">
+                                            <TextBlock Text="ABERTURA / VANO" FontSize="9.5" FontWeight="Bold" Foreground="#475569"/>
+                                        </Border>
+
+                                        <!-- CAPA 0: Ganchos de Malla Base en Borde del Vano -->
+                                        <Canvas x:Name="vizMeshHooks" Visibility="Collapsed">
+                                            <Polyline Points="125,76 132,76 132,70" Stroke="#475569" StrokeThickness="1.6"/>
+                                            <Polyline Points="125,94 132,94 132,88" Stroke="#475569" StrokeThickness="1.6"/>
+                                            <Polyline Points="125,112 132,112 132,106" Stroke="#475569" StrokeThickness="1.6"/>
+                                            <Polyline Points="285,76 278,76 278,70" Stroke="#475569" StrokeThickness="1.6"/>
+                                            <Polyline Points="285,94 278,94 278,88" Stroke="#475569" StrokeThickness="1.6"/>
+                                            <Polyline Points="285,112 278,112 278,106" Stroke="#475569" StrokeThickness="1.6"/>
+                                            <Polyline Points="160,54 160,60 166,60" Stroke="#475569" StrokeThickness="1.6"/>
+                                            <Polyline Points="205,54 205,60 211,60" Stroke="#475569" StrokeThickness="1.6"/>
+                                            <Polyline Points="250,54 250,60 256,60" Stroke="#475569" StrokeThickness="1.6"/>
+                                            <Polyline Points="160,135 160,129 166,129" Stroke="#475569" StrokeThickness="1.6"/>
+                                            <Polyline Points="205,135 205,129 211,129" Stroke="#475569" StrokeThickness="1.6"/>
+                                            <Polyline Points="250,135 250,129 256,129" Stroke="#475569" StrokeThickness="1.6"/>
+                                        </Canvas>
+
+                                        <!-- CAPA 1: Estribos Cerrados en Bordes (Magenta) -->
+                                        <Canvas x:Name="vizEdgeStirrups" Visibility="Collapsed">
+                                            <!-- Estribos en Dintel (Arriba) -->
+                                            <Rectangle x:Name="stTop1" Canvas.Left="145" Canvas.Top="44" Width="4" Height="16" Stroke="#D946EF" StrokeThickness="1.5"/>
+                                            <Rectangle x:Name="stTop2" Canvas.Left="165" Canvas.Top="44" Width="4" Height="16" Stroke="#D946EF" StrokeThickness="1.5"/>
+                                            <Rectangle x:Name="stTop3" Canvas.Left="185" Canvas.Top="44" Width="4" Height="16" Stroke="#D946EF" StrokeThickness="1.5"/>
+                                            <Rectangle x:Name="stTop4" Canvas.Left="205" Canvas.Top="44" Width="4" Height="16" Stroke="#D946EF" StrokeThickness="1.5"/>
+                                            <Rectangle x:Name="stTop5" Canvas.Left="225" Canvas.Top="44" Width="4" Height="16" Stroke="#D946EF" StrokeThickness="1.5"/>
+                                            <Rectangle x:Name="stTop6" Canvas.Left="245" Canvas.Top="44" Width="4" Height="16" Stroke="#D946EF" StrokeThickness="1.5"/>
+                                            <Rectangle x:Name="stTop7" Canvas.Left="262" Canvas.Top="44" Width="4" Height="16" Stroke="#D946EF" StrokeThickness="1.5"/>
+                                            <!-- Estribos en Alféizar (Abajo) -->
+                                            <Rectangle x:Name="stBot1" Canvas.Left="145" Canvas.Top="129" Width="4" Height="16" Stroke="#D946EF" StrokeThickness="1.5"/>
+                                            <Rectangle x:Name="stBot2" Canvas.Left="165" Canvas.Top="129" Width="4" Height="16" Stroke="#D946EF" StrokeThickness="1.5"/>
+                                            <Rectangle x:Name="stBot3" Canvas.Left="185" Canvas.Top="129" Width="4" Height="16" Stroke="#D946EF" StrokeThickness="1.5"/>
+                                            <Rectangle x:Name="stBot4" Canvas.Left="205" Canvas.Top="129" Width="4" Height="16" Stroke="#D946EF" StrokeThickness="1.5"/>
+                                            <Rectangle x:Name="stBot5" Canvas.Left="225" Canvas.Top="129" Width="4" Height="16" Stroke="#D946EF" StrokeThickness="1.5"/>
+                                            <Rectangle x:Name="stBot6" Canvas.Left="245" Canvas.Top="129" Width="4" Height="16" Stroke="#D946EF" StrokeThickness="1.5"/>
+                                            <Rectangle x:Name="stBot7" Canvas.Left="262" Canvas.Top="129" Width="4" Height="16" Stroke="#D946EF" StrokeThickness="1.5"/>
+                                            <!-- Estribos en Lateral Izquierdo -->
+                                            <Rectangle x:Name="stLeft1" Canvas.Left="117" Canvas.Top="67" Width="16" Height="4" Stroke="#D946EF" StrokeThickness="1.5"/>
+                                            <Rectangle x:Name="stLeft2" Canvas.Left="117" Canvas.Top="84" Width="16" Height="4" Stroke="#D946EF" StrokeThickness="1.5"/>
+                                            <Rectangle x:Name="stLeft3" Canvas.Left="117" Canvas.Top="101" Width="16" Height="4" Stroke="#D946EF" StrokeThickness="1.5"/>
+                                            <Rectangle x:Name="stLeft4" Canvas.Left="117" Canvas.Top="118" Width="16" Height="4" Stroke="#D946EF" StrokeThickness="1.5"/>
+                                            <!-- Estribos en Lateral Derecho -->
+                                            <Rectangle x:Name="stRight1" Canvas.Left="277" Canvas.Top="67" Width="16" Height="4" Stroke="#D946EF" StrokeThickness="1.5"/>
+                                            <Rectangle x:Name="stRight2" Canvas.Left="277" Canvas.Top="84" Width="16" Height="4" Stroke="#D946EF" StrokeThickness="1.5"/>
+                                            <Rectangle x:Name="stRight3" Canvas.Left="277" Canvas.Top="101" Width="16" Height="4" Stroke="#D946EF" StrokeThickness="1.5"/>
+                                            <Rectangle x:Name="stRight4" Canvas.Left="277" Canvas.Top="118" Width="16" Height="4" Stroke="#D946EF" StrokeThickness="1.5"/>
+                                        </Canvas>
+
+                                        <!-- CAPA 2: Refuerzo Longitudinal Perimetral (Azul Intenso) - Generado dinámicamente -->
+                                        <Canvas x:Name="vizPerimeterBars" Visibility="Visible"/>
+
+                                        <!-- CAPA 3: Refuerzo Diagonal a 45° en Esquinas (Naranja/Ámbar) - Generado dinámicamente -->
+                                        <Canvas x:Name="vizDiagonalBars" Visibility="Visible"/>
+                                    </Canvas>
+                                </Viewbox>
+
+                                <!-- Leyenda del Esquema -->
+                                <WrapPanel HorizontalAlignment="Center" Margin="0,6,0,0">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,12,0">
+                                        <Rectangle Width="12" Height="3" Fill="#94A3B8" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                        <TextBlock Text="Malla cortada" FontSize="10.5" Foreground="#64748B"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,12,0">
+                                        <Rectangle Width="12" Height="3" Fill="#0284C7" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                        <TextBlock Text="Perimetral (Ld)" FontSize="10.5" Foreground="#0284C7" FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,12,0">
+                                        <Rectangle Width="12" Height="3" Fill="#EA580C" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                        <TextBlock Text="Diagonales 45°" FontSize="10.5" Foreground="#EA580C" FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Rectangle Width="10" Height="6" Stroke="#D946EF" StrokeThickness="1.5" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                        <TextBlock Text="Estribos cerrados" FontSize="10.5" Foreground="#C026D3" FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Remate de Malla Base en Bordes de Abertura -->
+                        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="165"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Label Grid.Column="0" Content="Gancho de malla en vano:" VerticalAlignment="Center"
+                                       ToolTip="Define si las barras de la malla principal que se interrumpen en el vano terminan rectas o con gancho"/>
+                                <ComboBox x:Name="cbOpeningMeshHook" Grid.Column="1" SelectionChanged="OpeningOptions_Changed"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Casilla 1: Refuerzo Longitudinal Perimetral -->
+                        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,8">
+                            <StackPanel>
+                                <CheckBox x:Name="chkOpeningPerimeter" Content="Incluir refuerzo longitudinal perimetral (laterales, dintel y alféizar)"
+                                          IsChecked="True" FontWeight="SemiBold" Foreground="#0369A1" Margin="0,0,0,8"
+                                          Checked="OpeningOptions_Changed" Unchecked="OpeningOptions_Changed"/>
+
+                                <Grid x:Name="gridOpeningPerimeter">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="105"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Label Grid.Row="0" Grid.Column="0" Content="Barra:"/>
+                                    <ComboBox x:Name="cbOpeningPerimeterBar" Grid.Row="0" Grid.Column="1" Margin="0,0,8,6"/>
+
+                                    <Label Grid.Row="0" Grid.Column="2" Content="Barras / cara:"/>
+                                    <TextBox x:Name="txtOpeningPerimeterCount" Grid.Row="0" Grid.Column="3" Text="2" HorizontalContentAlignment="Center"
+                                             Margin="0,0,0,6" ToolTip="Cantidad de barras longitudinales por capa en cada borde de la abertura"
+                                             TextChanged="OpeningCount_TextChanged"/>
+
+                                    <Label Grid.Row="1" Grid.Column="0" Content="Espacio (cm):"/>
+                                    <TextBox x:Name="txtOpeningPerimeterSpacing" Grid.Row="1" Grid.Column="1" Text="10.0" HorizontalContentAlignment="Center"
+                                             Margin="0,0,8,0" ToolTip="Separación entre barras del paquete de refuerzo perimetral (cm)"
+                                             TextChanged="OpeningCount_TextChanged"/>
+
+                                    <Label Grid.Row="1" Grid.Column="2" Content="Anclaje Ld (cm):"/>
+                                    <TextBox x:Name="txtOpeningPerimeterLd" Grid.Row="1" Grid.Column="3" Text="50.0" HorizontalContentAlignment="Center"
+                                             ToolTip="Longitud de anclaje (Ld) que las barras perimetrales se extienden más allá de las esquinas del vano"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Casilla 2: Refuerzo Diagonal a 45° en Esquinas -->
+                        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,8">
+                            <StackPanel>
+                                <CheckBox x:Name="chkOpeningDiagonal" Content="Incluir refuerzo diagonal a 45° en esquinas del vano"
+                                          IsChecked="True" FontWeight="SemiBold" Foreground="#C2410C" Margin="0,0,0,8"
+                                          Checked="OpeningOptions_Changed" Unchecked="OpeningOptions_Changed"/>
+
+                                <Grid x:Name="gridOpeningDiagonal">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="105"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Label Grid.Row="0" Grid.Column="0" Content="Barra:"/>
+                                    <ComboBox x:Name="cbOpeningDiagonalBar" Grid.Row="0" Grid.Column="1" Margin="0,0,8,6"/>
+
+                                    <Label Grid.Row="0" Grid.Column="2" Content="Barras / esquina:"/>
+                                    <TextBox x:Name="txtOpeningDiagonalCount" Grid.Row="0" Grid.Column="3" Text="1" HorizontalContentAlignment="Center"
+                                             Margin="0,0,0,6" ToolTip="Cantidad de barras diagonales por capa en cada esquina libre del vano"
+                                             TextChanged="OpeningCount_TextChanged"/>
+
+                                    <Label Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Content="Longitud total diagonal (cm):"/>
+                                    <TextBox x:Name="txtOpeningDiagonalLength" Grid.Row="1" Grid.Column="3" Text="90.0" HorizontalContentAlignment="Center"
+                                             ToolTip="Longitud total de cada barra diagonal dispuesta a 45° en las esquinas"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Casilla 3: Estribos Cerrados en Bordes del Vano -->
+                        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="4" Padding="8">
+                            <StackPanel>
+                                <CheckBox x:Name="chkOpeningStirrups" Content="Incluir estribos cerrados en bordes del vano"
+                                          IsChecked="False" FontWeight="SemiBold" Foreground="#A21CAF" Margin="0,0,0,8"
+                                          Checked="OpeningOptions_Changed" Unchecked="OpeningOptions_Changed"/>
+
+                                <Grid x:Name="gridOpeningStirrups" IsEnabled="False">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="105"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Label Grid.Column="0" Content="Barra:"/>
+                                    <ComboBox x:Name="cbOpeningStirrupBar" Grid.Column="1" Margin="0,0,8,0"/>
+
+                                    <Label Grid.Column="2" Content="Espacio (cm):"/>
+                                    <TextBox x:Name="txtOpeningStirrupSpacing" Grid.Column="3" Text="10.0" HorizontalContentAlignment="Center"
+                                             ToolTip="Separación entre estribos cerrados a lo largo de los bordes del vano"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </GroupBox>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- 3. Botones de Acción -->
+        <Border Grid.Row="2" Padding="0,10,0,0" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Button Content="Cancelar" Width="90" Height="32" Grid.Column="1" Margin="0,0,8,0"
+                        Background="#FFFFFF" BorderBrush="#CBD5E1" Click="BtnCancel_Click" Cursor="Hand"/>
+
+                <Button x:Name="btnApply" Content="Crear Acero en Muros" Width="160" Height="32" Grid.Column="2"
+                        Background="#0078D7" Foreground="#FFFFFF" FontWeight="Bold" BorderThickness="0"
+                        Click="BtnApply_Click" Cursor="Hand"/>
+            </Grid>
+        </Border>
+
+    </Grid>
+</Window>

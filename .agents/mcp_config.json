@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "revit": {
+      "command": "dotnet",
+      "args": [
+        "C:\\Users\\jjcastillob\\Documents\\Antigravity_Revit\\src\\RevitMcp.Server\\bin\\Debug\\net8.0\\RevitMcp.Server.dll"
+      ]
+    }
+  }
+}
