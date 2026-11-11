@@ -1093,6 +1093,7 @@ public partial class WallRebarWindow : Window
             CrosstieHookMode = crosstieHookMode,
             BoundaryLengthMeters = boundaryLenMeters,
             BoundaryTieSpacingMeters = boundaryTieSpacingMeters,
+            BoundaryTieBarTypeName = crosstieBarName ?? horizBar?.Name,
             OpeningMeshHookTypeName = opMeshHookItem?.HookType?.Name,
             IncludeOpeningPerimeterBars = incOpPerimeter,
             OpeningPerimeterBarTypeName = opPerimBar?.Name,

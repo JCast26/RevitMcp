@@ -60,10 +60,21 @@ public static class CreateWallRebarHandler
 
         RebarBarType? boundaryTieBarType = null;
         RebarShape? boundaryTieShape = null;
+        RebarHookType? boundaryHook135 = null;
         if (request.IncludeBoundaryElements || request.Typology == WallRebarTypology.BoundaryElements)
         {
             boundaryTieBarType = ResolveBarType(doc, request.BoundaryTieBarTypeName, "3/8\"");
             boundaryTieShape = ResolveRebarShape(doc, request.BoundaryTieShapeName);
+
+            var allHooks = new FilteredElementCollector(doc)
+                .OfClass(typeof(RebarHookType))
+                .Cast<RebarHookType>()
+                .ToList();
+
+            boundaryHook135 = allHooks.FirstOrDefault(h => (h.Name.Contains("135") || Math.Abs(h.HookAngle - 2.356) < 0.1) && h.Style == RebarStyle.StirrupTie)
+                           ?? allHooks.FirstOrDefault(h => h.Name.Contains("135") || Math.Abs(h.HookAngle - 2.356) < 0.1)
+                           ?? allHooks.FirstOrDefault(h => h.Style == RebarStyle.StirrupTie)
+                           ?? allHooks.FirstOrDefault();
         }
 
         // Conversión de unidades (Metros a Pies Decimales)
@@ -229,15 +240,19 @@ public static class CreateWallRebarHandler
 
                     if (hasBoundary && boundaryTieBarType != null)
                     {
+                        bool isRightHandedZ = vDir.CrossProduct(nVec).DotProduct(XYZ.BasisZ) >= 0.0;
+
                         CreateBoundaryTieSet(doc, wall, PointAt,
                             0.0, boundaryLenFeet, wallThick, effectiveCoverFeet,
                             zMin + currentVBot, zMax - currentVTop,
-                            boundaryTieBarType, boundaryTieShape, boundaryTieSpacingFeet, view3D, summary);
+                            vDir, nVec, isRightHandedZ,
+                            boundaryTieBarType, boundaryTieShape, boundaryHook135, boundaryTieSpacingFeet, view3D, summary);
 
                         CreateBoundaryTieSet(doc, wall, PointAt,
                             wallLen - boundaryLenFeet, boundaryLenFeet, wallThick, effectiveCoverFeet,
                             zMin + currentVBot, zMax - currentVTop,
-                            boundaryTieBarType, boundaryTieShape, boundaryTieSpacingFeet, view3D, summary);
+                            vDir, nVec, isRightHandedZ,
+                            boundaryTieBarType, boundaryTieShape, boundaryHook135, boundaryTieSpacingFeet, view3D, summary);
                     }
 
                     // --- GENERAR MALLAS (1 O 2 CORTINAS) ---
@@ -713,158 +728,288 @@ public static class CreateWallRebarHandler
             else if (request.VerticalHookPosition == 2) vStartHook = vertHookType;
         }
 
-        // 1. Refuerzo Vertical (Varying Rebar Set)
+        // 1. Detección de tramos de coronación (rectos vs inclinados)
+        var topZones = geom.Profile.GetTopProfileZones(wallLen, zMax);
+
+        // 2. Grilla longitudinal global de barras verticales
+        int totalVSpaces = Math.Max(1, (int)Math.Round(vArrayLength / sVFeet));
+        double actualSV = vArrayLength / totalVSpaces;
+
+        var allSCoords = new List<double>();
+        for (int i = 0; i <= totalVSpaces; i++)
+        {
+            allSCoords.Add(vStartDist + i * actualSV);
+        }
+
+        // 3. Refuerzo Vertical: Modelado segmentado por tramos (Conjuntos en tramos rectos / Varying en inclinados)
         foreach (var layer in layerOffsets)
         {
             double zBotV = zMin + currentVBot;
-            double zTopV0 = geom.Profile.GetTopElevationAt(vStartDist, zMax) - currentVTop;
-            if (zTopV0 <= zBotV + 0.3) zTopV0 = zBotV + 0.3;
-
-            var pStartV = PointAt(vStartDist, layer.VerticalOffset, zBotV);
-            var pEndV = PointAt(vStartDist, layer.VerticalOffset, zTopV0);
-
             XYZ vHookLeft = vDir.CrossProduct(XYZ.BasisZ);
             XYZ inwardDir = (layer.VerticalOffset >= 0) ? (-nVec) : nVec;
             var vHookOrient = (vHookLeft.DotProduct(inwardDir) >= 0) ? RebarHookOrientation.Left : RebarHookOrientation.Right;
 
-            var vCurve = Line.CreateBound(pStartV, pEndV);
-            var vRebar = CreateRebarSafe(
-                doc,
-                RebarStyle.Standard,
-                vertBarType,
-                vStartHook,
-                vEndHook,
-                wall,
-                vDir,
-                new List<Curve> { vCurve },
-                vHookOrient,
-                vHookOrient);
-
-            bool nativeVaryingCreated = false;
-            if (vRebar != null)
+            foreach (var zone in topZones)
             {
-                try
-                {
-                    var accessor = vRebar.GetShapeDrivenAccessor();
-                    accessor.SetLayoutAsMaximumSpacing(sVFeet, vArrayLength, true, true, true);
+                var zoneS = allSCoords.Where(s => s >= zone.SStart - 0.01 && s <= zone.SEnd + 0.01).ToList();
+                if (zoneS.Count == 0) continue;
 
-                    if (vRebar.CanHaveVaryingLengthBars)
+                if (!zone.IsSloped)
+                {
+                    // =========================================================================
+                    // TRAMO RECTO HORIZONTAL: CONJUNTO DE ARMADURA (REBAR SET) CON REGLA DE DISEÑO
+                    // =========================================================================
+                    double zTopFlat = zone.AvgZ - (effectiveCoverFeet + dV / 2.0);
+                    if (zTopFlat <= zBotV + 0.2) continue;
+
+                    if (zoneS.Count == 1)
                     {
-                        try
+                        var pt0 = PointAt(zoneS[0], layer.VerticalOffset, zBotV);
+                        var pt1 = PointAt(zoneS[0], layer.VerticalOffset, zTopFlat);
+                        var c = Line.CreateBound(pt0, pt1);
+                        var r = CreateRebarSafe(doc, RebarStyle.Standard, vertBarType, vStartHook, vEndHook, wall, vDir, new List<Curve> { c }, vHookOrient, vHookOrient);
+                        if (r != null)
                         {
-                            accessor.UseRebarConstraintsToProduceVaryingBars = true;
-                            nativeVaryingCreated = true;
+                            summary.RebarElementIds.Add(r.Id.Value);
+                            totalVertBars += 1;
+                            if (view3D != null) r.SetUnobscuredInView(view3D, true);
                         }
-                        catch { }
                     }
-                }
-                catch { }
-
-                if (nativeVaryingCreated)
-                {
-                    summary.RebarElementIds.Add(vRebar.Id.Value);
-                    totalVertBars += vRebar.Quantity;
-                    if (view3D != null)
+                    else
                     {
-                        try { vRebar.SetUnobscuredInView(view3D, true); } catch { }
+                        double spanLen = zoneS.Last() - zoneS.First();
+                        var pt0 = PointAt(zoneS.First(), layer.VerticalOffset, zBotV);
+                        var pt1 = PointAt(zoneS.First(), layer.VerticalOffset, zTopFlat);
+                        var c = Line.CreateBound(pt0, pt1);
+                        var vRebarSet = CreateRebarSafe(doc, RebarStyle.Standard, vertBarType, vStartHook, vEndHook, wall, vDir, new List<Curve> { c }, vHookOrient, vHookOrient);
+                        if (vRebarSet != null)
+                        {
+                            try
+                            {
+                                var acc = vRebarSet.GetShapeDrivenAccessor();
+                                acc.SetLayoutAsNumberWithSpacing(zoneS.Count, actualSV, true, true, true);
+                            }
+                            catch
+                            {
+                                try
+                                {
+                                    var acc = vRebarSet.GetShapeDrivenAccessor();
+                                    acc.SetLayoutAsMaximumSpacing(sVFeet, spanLen, true, true, true);
+                                }
+                                catch { }
+                            }
+
+                            summary.RebarElementIds.Add(vRebarSet.Id.Value);
+                            totalVertBars += vRebarSet.Quantity;
+                            if (view3D != null) vRebarSet.SetUnobscuredInView(view3D, true);
+                        }
                     }
                 }
                 else
                 {
-                    try { doc.Delete(vRebar.Id); } catch { }
-                    vRebar = null;
-                }
-            }
+                    // =========================================================================
+                    // TRAMO INCLINADO / DIAGONAL: VARYING REBAR SET (O BARRAS INDEPENDIENTES SOLO AQUÍ)
+                    // =========================================================================
+                    double zTopStart = geom.Profile.GetTopElevationAt(zoneS.First(), zMax) - (effectiveCoverFeet + dV / 2.0);
+                    double spanLen = zoneS.Last() - zoneS.First();
 
-            if (!nativeVaryingCreated)
-            {
-                int nV = (int)Math.Floor(vArrayLength / sVFeet) + 1;
-                double actualSV = (nV > 1) ? (vArrayLength / (nV - 1)) : vArrayLength;
-
-                for (int i = 0; i < nV; i++)
-                {
-                    double sCur = vStartDist + i * actualSV;
-                    double zTopCur = geom.Profile.GetTopElevationAt(sCur, zMax) - currentVTop;
-                    if (zTopCur <= zBotV + 0.2) continue;
-
-                    var pt0 = PointAt(sCur, layer.VerticalOffset, zBotV);
-                    var pt1 = PointAt(sCur, layer.VerticalOffset, zTopCur);
-                    var c = Line.CreateBound(pt0, pt1);
-
-                    var r = CreateRebarSafe(
-                        doc,
-                        RebarStyle.Standard,
-                        vertBarType,
-                        vStartHook,
-                        vEndHook,
-                        wall,
-                        vDir,
-                        new List<Curve> { c },
-                        vHookOrient,
-                        vHookOrient);
-
-                    if (r != null)
+                    bool varyingSuccess = false;
+                    if (zoneS.Count > 1)
                     {
-                        summary.RebarElementIds.Add(r.Id.Value);
-                        totalVertBars += 1;
-                        if (view3D != null)
+                        var pt0 = PointAt(zoneS.First(), layer.VerticalOffset, zBotV);
+                        var pt1 = PointAt(zoneS.First(), layer.VerticalOffset, zTopStart);
+                        var c = Line.CreateBound(pt0, pt1);
+                        var vVaryingSet = CreateRebarSafe(doc, RebarStyle.Standard, vertBarType, vStartHook, vEndHook, wall, vDir, new List<Curve> { c }, vHookOrient, vHookOrient);
+
+                        if (vVaryingSet != null)
                         {
-                            try { r.SetUnobscuredInView(view3D, true); } catch { }
+                            try
+                            {
+                                var acc = vVaryingSet.GetShapeDrivenAccessor();
+                                acc.SetLayoutAsNumberWithSpacing(zoneS.Count, actualSV, true, true, true);
+                                if (vVaryingSet.CanHaveVaryingLengthBars)
+                                {
+                                    acc.UseRebarConstraintsToProduceVaryingBars = true;
+                                    varyingSuccess = true;
+                                }
+                            }
+                            catch { }
+
+                            if (varyingSuccess)
+                            {
+                                summary.RebarElementIds.Add(vVaryingSet.Id.Value);
+                                totalVertBars += vVaryingSet.Quantity;
+                                if (view3D != null) vVaryingSet.SetUnobscuredInView(view3D, true);
+                            }
+                            else
+                            {
+                                try { doc.Delete(vVaryingSet.Id); } catch { }
+                                vVaryingSet = null;
+                            }
+                        }
+                    }
+
+                    if (!varyingSuccess)
+                    {
+                        // Fallback acotado exclusivamente a la zona inclinada
+                        foreach (double sCur in zoneS)
+                        {
+                            double zTopCur = geom.Profile.GetTopElevationAt(sCur, zMax) - (effectiveCoverFeet + dV / 2.0);
+                            if (zTopCur <= zBotV + 0.2) continue;
+
+                            var pt0 = PointAt(sCur, layer.VerticalOffset, zBotV);
+                            var pt1 = PointAt(sCur, layer.VerticalOffset, zTopCur);
+                            var c = Line.CreateBound(pt0, pt1);
+                            var r = CreateRebarSafe(doc, RebarStyle.Standard, vertBarType, vStartHook, vEndHook, wall, vDir, new List<Curve> { c }, vHookOrient, vHookOrient);
+                            if (r != null)
+                            {
+                                summary.RebarElementIds.Add(r.Id.Value);
+                                totalVertBars += 1;
+                                if (view3D != null) r.SetUnobscuredInView(view3D, true);
+                            }
                         }
                     }
                 }
             }
         }
 
-        // 2. Refuerzo Horizontal (Alternativa 1: Acortamiento progresivo según altura)
+        // 4. Refuerzo Horizontal: Paño inferior completo (Rebar Set) + Paño superior inclinado (progresivo)
+        var slopedZonesList = topZones.Where(z => z.IsSloped).ToList();
+        double zLowestSlope = slopedZonesList.Count > 0
+            ? slopedZonesList.Select(z => Math.Min(z.ZStart, z.ZEnd)).Min()
+            : zMax;
+
         double zBotH = zMin + currentVBot;
-        double zTopH = zMax - currentVTop;
-        double curZ = zBotH;
+        double zFullMax = zLowestSlope - (effectiveCoverFeet + dH / 2.0);
+        double fullHeight = zFullMax - zBotH;
 
-        while (curZ <= zTopH + 0.01)
+        if (fullHeight > 0.2)
         {
-            var (sMinSpan, sMaxSpan) = geom.Profile.GetHorizontalSpanAt(curZ, wallLen);
-            double sStart = Math.Max(sMinSpan + currentHStart, currentHStart);
-            double sEnd = Math.Min(sMaxSpan - currentHEnd, wallLen - currentHEnd);
-            double barLen = sEnd - sStart;
+            int fullSpaces = Math.Max(1, (int)Math.Floor(fullHeight / sHFeet));
+            double actualFullHeight = fullSpaces * sHFeet;
 
-            if (barLen >= 0.20)
+            // 4.1 Paño Inferior Completo: Conjunto de armadura continuo de extremo a extremo
+            foreach (var layer in layerOffsets)
             {
-                foreach (var layer in layerOffsets)
+                var ptStart = PointAt(currentHStart, layer.HorizontalOffset, zBotH);
+                var ptEnd = PointAt(wallLen - currentHEnd, layer.HorizontalOffset, zBotH);
+                var hCurve = Line.CreateBound(ptStart, ptEnd);
+
+                var hRebarSet = CreateRebarSafe(
+                    doc,
+                    RebarStyle.Standard,
+                    horizBarType,
+                    horizHookType,
+                    horizHookType,
+                    wall,
+                    zVec,
+                    new List<Curve> { hCurve });
+
+                if (hRebarSet != null)
                 {
-                    var ptStart = PointAt(sStart, layer.HorizontalOffset, curZ);
-                    var ptEnd = PointAt(sEnd, layer.HorizontalOffset, curZ);
-                    var hCurve = Line.CreateBound(ptStart, ptEnd);
-
-                    var hRebar = CreateRebarSafe(
-                        doc,
-                        RebarStyle.Standard,
-                        horizBarType,
-                        horizHookType,
-                        horizHookType,
-                        wall,
-                        zVec,
-                        new List<Curve> { hCurve });
-
-                    if (hRebar != null)
+                    try
                     {
-                        summary.RebarElementIds.Add(hRebar.Id.Value);
-                        totalHorizBars += 1;
-                        if (view3D != null)
-                        {
-                            try { hRebar.SetUnobscuredInView(view3D, true); } catch { }
-                        }
+                        var acc = hRebarSet.GetShapeDrivenAccessor();
+                        acc.SetLayoutAsMaximumSpacing(sHFeet, actualFullHeight, true, true, true);
                     }
+                    catch { }
+
+                    summary.RebarElementIds.Add(hRebarSet.Id.Value);
+                    totalHorizBars += hRebarSet.Quantity;
+                    if (view3D != null) hRebarSet.SetUnobscuredInView(view3D, true);
                 }
             }
 
-            curZ += sHFeet;
+            // 4.2 Paño Superior Inclinado: Barras con longitud progresivamente acortada según la pendiente
+            double curZ = zBotH + (fullSpaces + 1) * sHFeet;
+            double zTopH = zMax - (effectiveCoverFeet + dH / 2.0);
+
+            while (curZ <= zTopH + 0.01)
+            {
+                var (sMinSpan, sMaxSpan) = geom.Profile.GetHorizontalSpanAt(curZ, wallLen);
+                double sStart = Math.Max(sMinSpan + currentHStart, currentHStart);
+                double sEnd = Math.Min(sMaxSpan - currentHEnd, wallLen - currentHEnd);
+                double barLen = sEnd - sStart;
+
+                if (barLen >= 0.20)
+                {
+                    foreach (var layer in layerOffsets)
+                    {
+                        var ptStart = PointAt(sStart, layer.HorizontalOffset, curZ);
+                        var ptEnd = PointAt(sEnd, layer.HorizontalOffset, curZ);
+                        var hCurve = Line.CreateBound(ptStart, ptEnd);
+
+                        var hRebar = CreateRebarSafe(
+                            doc,
+                            RebarStyle.Standard,
+                            horizBarType,
+                            horizHookType,
+                            horizHookType,
+                            wall,
+                            zVec,
+                            new List<Curve> { hCurve });
+
+                        if (hRebar != null)
+                        {
+                            summary.RebarElementIds.Add(hRebar.Id.Value);
+                            totalHorizBars += 1;
+                            if (view3D != null) hRebar.SetUnobscuredInView(view3D, true);
+                        }
+                    }
+                }
+
+                curZ += sHFeet;
+            }
+        }
+        else
+        {
+            // Muro completamente inclinado de punta a punta
+            double curZ = zBotH;
+            double zTopH = zMax - (effectiveCoverFeet + dH / 2.0);
+
+            while (curZ <= zTopH + 0.01)
+            {
+                var (sMinSpan, sMaxSpan) = geom.Profile.GetHorizontalSpanAt(curZ, wallLen);
+                double sStart = Math.Max(sMinSpan + currentHStart, currentHStart);
+                double sEnd = Math.Min(sMaxSpan - currentHEnd, wallLen - currentHEnd);
+                double barLen = sEnd - sStart;
+
+                if (barLen >= 0.20)
+                {
+                    foreach (var layer in layerOffsets)
+                    {
+                        var ptStart = PointAt(sStart, layer.HorizontalOffset, curZ);
+                        var ptEnd = PointAt(sEnd, layer.HorizontalOffset, curZ);
+                        var hCurve = Line.CreateBound(ptStart, ptEnd);
+
+                        var hRebar = CreateRebarSafe(
+                            doc,
+                            RebarStyle.Standard,
+                            horizBarType,
+                            horizHookType,
+                            horizHookType,
+                            wall,
+                            zVec,
+                            new List<Curve> { hCurve });
+
+                        if (hRebar != null)
+                        {
+                            summary.RebarElementIds.Add(hRebar.Id.Value);
+                            totalHorizBars += 1;
+                            if (view3D != null) hRebar.SetUnobscuredInView(view3D, true);
+                        }
+                    }
+                }
+
+                curZ += sHFeet;
+            }
         }
 
-        // 3. Barra perimetral superior (dintel inclinado de coronación)
+        // 5. Barra perimetral superior (dintel inclinado de coronación, desfasado en espesor T sin interferencias)
         if (request.IncludeInclinedTopBar && geom.Profile.BoundarySegments.Count > 0)
         {
             var topBarType = ResolveBarType(doc, request.InclinedTopBarTypeName, request.VerticalBarTypeName) ?? vertBarType;
+            double dTop = GetBarDiameter(topBarType);
 
             var slopedSegs = geom.Profile.BoundarySegments
                 .Where(seg => Math.Abs(seg.S1 - seg.S0) > 0.3 && Math.Abs(seg.Z1 - seg.Z0) > 0.3)
@@ -893,18 +1038,33 @@ public static class CreateWallRebarHandler
                     nz = -nz;
                 }
 
-                double s0Bar = sA + us * currentHStart + ns * effectiveCoverFeet;
-                double z0Bar = zA + uz * currentHStart + nz * effectiveCoverFeet;
-                double s1Bar = sB - us * currentHEnd + ns * effectiveCoverFeet;
-                double z1Bar = zB - uz * currentHEnd + nz * effectiveCoverFeet;
+                // Cota de eje respetando estrictamente el recubrimiento libre de concreto
+                double distFromEdge = effectiveCoverFeet + dTop / 2.0;
+
+                double s0Bar = sA + us * currentHStart + ns * distFromEdge;
+                double z0Bar = zA + uz * currentHStart + nz * distFromEdge;
+                double s1Bar = sB - us * currentHEnd + ns * distFromEdge;
+                double z1Bar = zB - uz * currentHEnd + nz * distFromEdge;
 
                 double barSegLen = Math.Sqrt(Math.Pow(s1Bar - s0Bar, 2) + Math.Pow(z1Bar - z0Bar, 2));
                 if (barSegLen < 0.3) continue;
 
                 foreach (var layer in layerOffsets)
                 {
-                    var pt0 = PointAt(s0Bar, layer.VerticalOffset, z0Bar);
-                    var pt1 = PointAt(s1Bar, layer.VerticalOffset, z1Bar);
+                    // Desfase en espesor (T) hacia la cara interna de los verticales para evitar cruces 3D
+                    double tDiag;
+                    if (numMeshes == 1)
+                    {
+                        tDiag = layer.VerticalOffset + (dV / 2.0 + dTop / 2.0);
+                    }
+                    else
+                    {
+                        double sign = layer.VerticalOffset >= 0 ? -1.0 : 1.0;
+                        tDiag = layer.VerticalOffset + sign * (dV / 2.0 + dTop / 2.0);
+                    }
+
+                    var pt0 = PointAt(s0Bar, tDiag, z0Bar);
+                    var pt1 = PointAt(s1Bar, tDiag, z1Bar);
                     var topCurve = Line.CreateBound(pt0, pt1);
 
                     var topRebar = CreateRebarSafe(
@@ -1071,8 +1231,12 @@ public static class CreateWallRebarHandler
         double cover,
         double zBot,
         double zTop,
+        XYZ vDir,
+        XYZ nVec,
+        bool isRightHandedZ,
         RebarBarType tieBarType,
         RebarShape? tieShape,
+        RebarHookType? hook135,
         double tieSpacing,
         View3D? view3D,
         WallRebarCreatedSummary summary)
@@ -1080,38 +1244,103 @@ public static class CreateWallRebarHandler
         try
         {
             double tieWidth = Math.Max(0.2, boundaryLength - 2.0 * cover);
-            double tieDepth = Math.Max(0.2, wallThickness - 2.0 * cover);
+            double tieDepth = Math.Max(0.12, wallThickness - 2.0 * cover);
             double arrayHeight = Math.Max(0.2, zTop - zBot);
 
             double sCenter = startDistAlongWall + boundaryLength / 2.0;
             double halfW = tieWidth / 2.0;
             double halfD = tieDepth / 2.0;
 
-            var c1 = pointAt(sCenter - halfW, -halfD, zBot);
-            var c2 = pointAt(sCenter + halfW, -halfD, zBot);
-            var c3 = pointAt(sCenter + halfW, +halfD, zBot);
-            var c4 = pointAt(sCenter - halfW, +halfD, zBot);
+            XYZ origin;
+            XYZ xVec;
+            XYZ yVec;
+            XYZ boxVecX;
+            XYZ boxVecY;
+            double dimA;
+            double dimB;
 
-            var curves = new List<Curve>
+            if (isRightHandedZ)
             {
-                Line.CreateBound(c1, c2),
-                Line.CreateBound(c2, c3),
-                Line.CreateBound(c3, c4),
-                Line.CreateBound(c4, c1)
-            };
+                origin = pointAt(sCenter - halfW, -halfD, zBot);
+                xVec = vDir;
+                yVec = nVec;
+                boxVecX = xVec * tieWidth;
+                boxVecY = yVec * tieDepth;
+                dimA = tieWidth;
+                dimB = tieDepth;
+            }
+            else
+            {
+                origin = pointAt(sCenter - halfW, -halfD, zBot);
+                xVec = nVec;
+                yVec = vDir;
+                boxVecX = xVec * tieDepth;
+                boxVecY = yVec * tieWidth;
+                dimA = tieDepth;
+                dimB = tieWidth;
+            }
 
-            var tieRebar = CreateRebarSafe(
-                doc,
-                RebarStyle.StirrupTie,
-                tieBarType,
-                null,
-                null,
-                wall,
-                XYZ.BasisZ,
-                curves);
+            Rebar? tieRebar = null;
+
+            // 1. Intentar creación nativa con RebarShape de estribo sísmico (T1/51 con ganchos a 135°)
+            if (tieShape != null)
+            {
+                try
+                {
+                    tieRebar = Rebar.CreateFromRebarShape(doc, tieShape, tieBarType, wall, origin, xVec, yVec);
+                    if (tieRebar != null)
+                    {
+                        ApplyStirrupDimensions(tieRebar, origin, boxVecX, boxVecY, dimA, dimB);
+                    }
+                }
+                catch { }
+            }
+
+            // 2. Fallback con curvas si no hay shape o falló
+            if (tieRebar == null)
+            {
+                var c1 = pointAt(sCenter - halfW, -halfD, zBot);
+                var c2 = pointAt(sCenter + halfW, -halfD, zBot);
+                var c3 = pointAt(sCenter + halfW, +halfD, zBot);
+                var c4 = pointAt(sCenter - halfW, +halfD, zBot);
+
+                // Pequeño desfase para dejar el loop abierto y permitir que Revit asigne ganchos a 135°
+                double dStir = GetBarDiameter(tieBarType);
+                var cEnd = pointAt(sCenter - halfW, -halfD + Math.Min(halfD * 0.5, dStir), zBot);
+
+                var curves = new List<Curve>
+                {
+                    Line.CreateBound(c1, c2),
+                    Line.CreateBound(c2, c3),
+                    Line.CreateBound(c3, c4),
+                    Line.CreateBound(c4, cEnd)
+                };
+
+                RebarStyle tieStyle = hook135?.Style ?? RebarStyle.StirrupTie;
+                tieRebar = CreateRebarSafe(
+                    doc,
+                    tieStyle,
+                    tieBarType,
+                    hook135,
+                    hook135,
+                    wall,
+                    XYZ.BasisZ,
+                    curves,
+                    RebarHookOrientation.Left,
+                    RebarHookOrientation.Right);
+            }
 
             if (tieRebar != null)
             {
+                // Asegurar asignación explícita del gancho sísmico a 135° en ambos extremos
+                if (hook135 != null)
+                {
+                    try { tieRebar.SetHookTypeId(0, hook135.Id); } catch { }
+                    try { tieRebar.SetHookTypeId(1, hook135.Id); } catch { }
+                    try { tieRebar.SetHookOrientation(0, RebarHookOrientation.Left); } catch { }
+                    try { tieRebar.SetHookOrientation(1, RebarHookOrientation.Right); } catch { }
+                }
+
                 try
                 {
                     var acc = tieRebar.GetShapeDrivenAccessor();
@@ -1462,15 +1691,20 @@ public static class CreateWallRebarHandler
             if (match != null) return match;
         }
 
-        // Buscar por nomenclatura estándar de estribo sísmico cerrado con ganchos (T1, 51, M_T1, Estribo, Stirrup, Cerco)
+        // Buscar por nomenclatura estándar de estribo sísmico cerrado con ganchos (T1, 51, M_T1, 135, Estribo, Stirrup, Cerco)
         // Se descartan formas tipo '00' que corresponden a rectángulos cerrados sin ganchos
         var matchT1 = pool.FirstOrDefault(s => s.Name.Contains("T1", StringComparison.OrdinalIgnoreCase))
                    ?? pool.FirstOrDefault(s => s.Name.Contains("51"))
-                   ?? pool.FirstOrDefault(s => s.Name.Contains("Stirrup", StringComparison.OrdinalIgnoreCase) && !s.Name.Contains("00"))
-                   ?? pool.FirstOrDefault(s => s.Name.Contains("Estribo", StringComparison.OrdinalIgnoreCase) && !s.Name.Contains("00"))
-                   ?? pool.FirstOrDefault(s => s.Name.Contains("Cerco", StringComparison.OrdinalIgnoreCase));
+                   ?? pool.FirstOrDefault(s => s.Name.Contains("135"))
+                   ?? pool.FirstOrDefault(s => (s.Name.Contains("Stirrup", StringComparison.OrdinalIgnoreCase) ||
+                                                s.Name.Contains("Estribo", StringComparison.OrdinalIgnoreCase) ||
+                                                s.Name.Contains("Cerco", StringComparison.OrdinalIgnoreCase)) && !s.Name.Contains("00"));
 
-        return matchT1 ?? pool.FirstOrDefault();
+        if (matchT1 != null) return matchT1;
+
+        // Si no hay match explícito, buscar cualquier forma que no sea '00' (rectángulo plano sin ganchos)
+        var non00 = pool.FirstOrDefault(s => !s.Name.Contains("00") && s.RebarStyle == RebarStyle.StirrupTie);
+        return non00;
     }
 
     private static void ApplyStirrupDimensions(Rebar rebar, XYZ origin, XYZ boxVecX, XYZ boxVecY, double widthFeet, double heightFeet)

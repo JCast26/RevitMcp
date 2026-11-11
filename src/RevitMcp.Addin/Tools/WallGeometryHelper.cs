@@ -144,6 +144,73 @@ public class ElevationProfileInfo
         }
         return (Math.Max(0.0, minS), Math.Min(lenFeet, maxS));
     }
+
+    /// <summary>
+    /// Extrae los tramos que componen la coronación superior del muro ordenados de izquierda a derecha en S.
+    /// </summary>
+    public List<TopProfileZone> GetTopProfileZones(double wallLen, double zMax)
+    {
+        var rawTopSegs = new List<(double s0, double z0, double s1, double z1)>();
+        foreach (var seg in BoundarySegments)
+        {
+            double sMin = Math.Min(seg.S0, seg.S1);
+            double sMax = Math.Max(seg.S0, seg.S1);
+            if (sMax - sMin < 0.05) continue; // segmento vertical
+
+            double sMid = (sMin + sMax) * 0.5;
+            double factor = (sMid - seg.S0) / (seg.S1 - seg.S0);
+            double zMid = seg.Z0 + factor * (seg.Z1 - seg.Z0);
+            double zTopMid = GetTopElevationAt(sMid, zMax);
+
+            if (Math.Abs(zMid - zTopMid) < 0.08)
+            {
+                double z0 = (seg.S0 <= seg.S1) ? seg.Z0 : seg.Z1;
+                double z1 = (seg.S0 <= seg.S1) ? seg.Z1 : seg.Z0;
+                rawTopSegs.Add((sMin, z0, sMax, z1));
+            }
+        }
+
+        // Ordenar por S de izquierda a derecha
+        rawTopSegs = rawTopSegs.OrderBy(s => s.s0).ToList();
+
+        var zones = new List<TopProfileZone>();
+        foreach (var seg in rawTopSegs)
+        {
+            zones.Add(new TopProfileZone
+            {
+                SStart = seg.s0,
+                SEnd = seg.s1,
+                ZStart = seg.z0,
+                ZEnd = seg.z1
+            });
+        }
+
+        if (zones.Count == 0)
+        {
+            zones.Add(new TopProfileZone
+            {
+                SStart = 0.0,
+                SEnd = wallLen,
+                ZStart = zMax,
+                ZEnd = zMax
+            });
+        }
+
+        return zones;
+    }
+}
+
+/// <summary>
+/// Representa un tramo del borde superior del perfil (recto horizontal o inclinado).
+/// </summary>
+public class TopProfileZone
+{
+    public double SStart { get; set; }
+    public double SEnd { get; set; }
+    public double ZStart { get; set; }
+    public double ZEnd { get; set; }
+    public bool IsSloped => Math.Abs(ZEnd - ZStart) >= 0.05;
+    public double AvgZ => (ZStart + ZEnd) * 0.5;
 }
 
 /// <summary>
