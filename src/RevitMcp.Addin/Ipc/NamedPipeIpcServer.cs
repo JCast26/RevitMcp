@@ -123,10 +123,12 @@ public class NamedPipeIpcServer : IDisposable
     {
         try
         {
-            using var reader = new StreamReader(pipeStream, Encoding.UTF8, leaveOpen: true);
-            using var writer = new StreamWriter(pipeStream, Encoding.UTF8, leaveOpen: true) { AutoFlush = true };
+            RevitExternalEventHandler.LogTrace("IPC: Cliente conectado.");
+            using var reader = new StreamReader(pipeStream, new UTF8Encoding(false), leaveOpen: true);
+            using var writer = new StreamWriter(pipeStream, new UTF8Encoding(false), leaveOpen: true) { AutoFlush = true };
 
             var requestLine = await reader.ReadLineAsync(ct).ConfigureAwait(false);
+            RevitExternalEventHandler.LogTrace($"IPC: Línea recibida ({requestLine?.Length ?? 0} chars).");
             if (string.IsNullOrWhiteSpace(requestLine))
                 return;
 
@@ -143,12 +145,14 @@ public class NamedPipeIpcServer : IDisposable
 
             var responseJson = JsonSerializer.Serialize(response);
             await writer.WriteLineAsync(responseJson).ConfigureAwait(false);
+            RevitExternalEventHandler.LogTrace($"IPC: Respuesta enviada para '{request.Action}' (success={response.Success}).");
         }
         catch (Exception ex)
         {
+            RevitExternalEventHandler.LogTrace($"IPC ERROR: {ex.GetType().Name}: {ex.Message}");
             try
             {
-                using var errWriter = new StreamWriter(pipeStream, Encoding.UTF8, leaveOpen: true) { AutoFlush = true };
+                using var errWriter = new StreamWriter(pipeStream, new UTF8Encoding(false), leaveOpen: true) { AutoFlush = true };
                 var errResponse = IpcResponse.Fail(string.Empty, $"Error en servidor IPC de Revit: {ex.Message}");
                 await errWriter.WriteLineAsync(JsonSerializer.Serialize(errResponse)).ConfigureAwait(false);
             }

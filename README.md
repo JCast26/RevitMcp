@@ -130,6 +130,23 @@ Crea una nueva familia desde una plantilla `.rft`, le inyecta parámetros compar
   }
   ```
 
+### 3.1. `InspectFamily`
+Inspecciona el documento de familia (`.rfa`) abierto actualmente en el Editor de Familias (`doc.IsFamilyDocument == true`). Devuelve los parámetros del `FamilyManager`, tipos de familia, formas 3D (`Extrusion`, `Blend`, `Revolution`, `Sweep`), sus perfiles y *bounding boxes* en **metros**, planos de referencia, cotas, familias anidadas y los `elementId` seleccionados en pantalla.
+
+### 3.2. `EditFamilyGeometry`
+Modifica geométricamente o paramétricamente elementos dentro de la familia (`.rfa`) activa en el Editor de Familias. Todas las longitudes/coordenadas se envían en **metros** y los ángulos en **grados**.
+- **Operaciones soportadas:**
+  - `Move`: traslada elementos (`translationMeters`).
+  - `Rotate`: rota elementos alrededor de un eje (`axisOriginMeters`, `axisDirection`, `angleDegrees`).
+  - `Mirror`: refleja o copia elementos respecto a un plano (`planeOriginMeters`, `planeNormal`, `copy`).
+  - `SetExtrusionBounds`: ajusta `startOffsetMeters`, `endOffsetMeters`, ángulos de revolución o sólido/vacío (`isSolid`).
+  - `ScaleProfile`: escala el croquis 2D en el plano de trabajo (`scaleX`, `scaleY` o `scaleFactor`, `pivotMeters`).
+  - `OffsetProfile`: desfasa el perfil 2D hacia afuera/adentro (`offsetMeters`).
+  - `ReplaceExtrusionProfile`: reemplaza el perfil 2D mediante `profileLoops`, `rectangle` o `circle` preservando el `ElementId` vía `SketchEditScope`.
+  - `CreateExtrusion`: crea una nueva extrusión sólida o vacía (`isSolid`) en la familia.
+  - `SetFamilyParameter`: actualiza parámetros del `FamilyManager` (incluyendo fórmulas) o parámetros directos del elemento.
+  - `DeleteElements`: elimina elementos de la familia.
+
 ### 4. `CreateBeamStirrups` (Módulo Acero de Refuerzo - BIM Suite)
 Genera conjuntos de armadura (estribos) para vigas de concreto armado siguiendo el criterio sismorresistente estricto en 3 conjuntos:
 - **Conjunto 1 (Inicio):** Regla `NumberWithSpacing` ($N_1 \text{ @ } S_1$), separado $S_0$ (típicamente 5 cm) de la cara interior del apoyo.

@@ -1,0 +1,253 @@
+<Window x:Class="RevitMcp.Addin.UI.CapitalRebarWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="BIM Suite — Armado de Capiteles"
+        Width="790" Height="645"
+        MinWidth="740" MinHeight="590"
+        WindowStartupLocation="CenterScreen"
+        Background="#F1F5F9"
+        FontFamily="Segoe UI">
+    <Window.Resources>
+        <Style x:Key="SectionCard" TargetType="Border">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="12,10"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#0F172A"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="#475569"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="6,0"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" Background="#0284C7" Padding="18,12">
+            <StackPanel>
+                <TextBlock Text="Armado de Capiteles (Structural Columns)"
+                           Foreground="White" FontSize="16" FontWeight="SemiBold"/>
+                <TextBlock Text="Barras verticales en caras con ganchos a 90° hacia el interior + estribos cerrados a 135°"
+                           Foreground="#E0F2FE" FontSize="11.5" Margin="0,2,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Main Content -->
+        <Grid Grid.Row="1" Margin="14,12,14,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="310"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left Column: Live Schematics -->
+            <Border Grid.Column="0" Style="{StaticResource SectionCard}" Margin="0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="Vista en Planta (Esquema)"
+                               Style="{StaticResource SectionTitle}" Margin="0,0,0,4"/>
+
+                    <Border Grid.Row="1" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="4">
+                        <Canvas x:Name="CanvasPlanta" ClipToBounds="True" SizeChanged="DiagramCanvas_SizeChanged"/>
+                    </Border>
+
+                    <TextBlock Grid.Row="2" Text="Vista en Elevación (Esquema)"
+                               Style="{StaticResource SectionTitle}" Margin="0,10,0,4"/>
+
+                    <Border Grid.Row="3" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="4">
+                        <Canvas x:Name="CanvasElevacion" ClipToBounds="True" SizeChanged="DiagramCanvas_SizeChanged"/>
+                    </Border>
+
+                    <Border Grid.Row="4" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1"
+                            CornerRadius="4" Padding="8,6" Margin="0,10,0,0">
+                        <TextBlock x:Name="LblDiagramInfo"
+                                   FontSize="11" Foreground="#1E3A8A" TextWrapping="Wrap"
+                                   Text="Seleccione un capitel para visualizar dimensiones y conteo estimado."/>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- Right Column: Controls -->
+            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <!-- 1. Selección -->
+                    <Border Style="{StaticResource SectionCard}">
+                        <StackPanel>
+                            <TextBlock Text="1. Elementos (Structural Columns)" Style="{StaticResource SectionTitle}"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="LblSelectionStatus"
+                                           Grid.Column="0"
+                                           Text="Sin capiteles seleccionados"
+                                           FontSize="12" Foreground="#334155"
+                                           VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,10,0"/>
+                                <Button x:Name="BtnPickCapitals" Grid.Column="1"
+                                        Content="Seleccionar en Revit"
+                                        Padding="12,6" Background="#E0F2FE" Foreground="#0369A1"
+                                        BorderBrush="#7DD3FC" BorderThickness="1"
+                                        FontWeight="SemiBold" FontSize="12" Cursor="Hand"
+                                        Click="BtnPickCapitals_Click"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 2. Barras Verticales -->
+                    <Border Style="{StaticResource SectionCard}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="165"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.ColumnSpan="2"
+                                       Text="2. Barras Verticales en Caras (Ganchos 90°)"
+                                       Style="{StaticResource SectionTitle}"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Diámetro de Barra:" Style="{StaticResource FieldLabel}" Margin="0,0,8,8"/>
+                            <ComboBox x:Name="CmbVertBarType" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8"
+                                      SelectionChanged="ConfigControl_Changed"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Espaciamiento Máx. (m):" Style="{StaticResource FieldLabel}" Margin="0,0,8,8"/>
+                            <TextBox x:Name="TxtVertSpacing" Grid.Row="2" Grid.Column="1" Margin="0,0,0,8"
+                                     Text="0.20" TextChanged="ConfigControl_Changed"/>
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Gancho 90° (Extremos):" Style="{StaticResource FieldLabel}" Margin="0,0,8,0"/>
+                            <ComboBox x:Name="CmbVertHookType" Grid.Row="3" Grid.Column="1"
+                                      SelectionChanged="ConfigControl_Changed"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- 3. Estribos Cerrados -->
+                    <Border Style="{StaticResource SectionCard}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="165"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.ColumnSpan="2"
+                                       Text="3. Estribos Cerrados (Ganchos 135°)"
+                                       Style="{StaticResource SectionTitle}"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Diámetro de Estribo:" Style="{StaticResource FieldLabel}" Margin="0,0,8,8"/>
+                            <ComboBox x:Name="CmbStirrupBarType" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8"
+                                      SelectionChanged="ConfigControl_Changed"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Espaciamiento Vertical (m):" Style="{StaticResource FieldLabel}" Margin="0,0,8,8"/>
+                            <TextBox x:Name="TxtStirrupSpacing" Grid.Row="2" Grid.Column="1" Margin="0,0,0,8"
+                                     Text="0.15" TextChanged="ConfigControl_Changed"/>
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Forma de Estribo:" Style="{StaticResource FieldLabel}" Margin="0,0,8,8"/>
+                            <ComboBox x:Name="CmbStirrupShape" Grid.Row="3" Grid.Column="1" Margin="0,0,0,8"
+                                      SelectionChanged="ConfigControl_Changed"/>
+
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Gancho 135°:" Style="{StaticResource FieldLabel}" Margin="0,0,8,0"/>
+                            <ComboBox x:Name="CmbStirrupHookType" Grid.Row="4" Grid.Column="1"
+                                      SelectionChanged="ConfigControl_Changed"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- 4. Recubrimiento -->
+                    <Border Style="{StaticResource SectionCard}" Margin="0">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="165"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.ColumnSpan="2"
+                                       Text="4. Recubrimiento"
+                                       Style="{StaticResource SectionTitle}"/>
+
+                            <CheckBox x:Name="ChkUseElementCover" Grid.Row="1" Grid.ColumnSpan="2"
+                                      Content="Usar recubrimiento del capitel en Revit"
+                                      IsChecked="True" FontSize="12" Foreground="#1E293B" Margin="0,0,0,8"
+                                      Checked="ChkUseElementCover_Changed" Unchecked="ChkUseElementCover_Changed"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Recubrimiento manual (m):" Style="{StaticResource FieldLabel}" Margin="0,0,8,0"/>
+                            <Grid Grid.Row="2" Grid.Column="1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="95"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="TxtCoverMeters" Grid.Column="0" Text="0.04"
+                                         IsEnabled="False" TextChanged="ConfigControl_Changed"/>
+                                <TextBlock x:Name="LblElementCoverInfo" Grid.Column="1"
+                                           Margin="8,0,0,0" FontSize="11" Foreground="#64748B"
+                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                            </Grid>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- Footer -->
+        <Border Grid.Row="2" Background="White" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0" Padding="14,10">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="BtnCancel" Content="Cancelar" Width="105" Height="32"
+                        Margin="0,0,10,0" Background="#F1F5F9" Foreground="#334155"
+                        BorderBrush="#CBD5E1" BorderThickness="1" FontWeight="SemiBold" Cursor="Hand"
+                        Click="BtnCancel_Click"/>
+                <Button x:Name="BtnApply" Content="Armar Capiteles" Width="150" Height="32"
+                        Background="#0284C7" Foreground="White" BorderThickness="0"
+                        FontWeight="SemiBold" Cursor="Hand"
+                        Click="BtnApply_Click"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

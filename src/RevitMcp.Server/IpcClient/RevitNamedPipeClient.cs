@@ -44,16 +44,20 @@ public class RevitNamedPipeClient
                     "No se pudo conectar con el Add-in de Revit. Asegúrese de que Autodesk Revit esté abierto, el Add-in 'Revit MCP Integration' esté cargado y el proyecto esté activo.");
             }
 
-            using var reader = new StreamReader(pipeClient, Encoding.UTF8, leaveOpen: true);
-            using var writer = new StreamWriter(pipeClient, Encoding.UTF8, leaveOpen: true) { AutoFlush = true };
+            using var reader = new StreamReader(pipeClient, new UTF8Encoding(false), leaveOpen: true);
+            using var writer = new StreamWriter(pipeClient, new UTF8Encoding(false), leaveOpen: true) { AutoFlush = true };
 
             // Enviar solicitud serializada
             var serializedRequest = JsonSerializer.Serialize(request);
             await writer.WriteLineAsync(serializedRequest).ConfigureAwait(false);
 
-            // Leer respuesta desde Revit
+            // Leer respuesta desde Revit (cerrar el pipe al cancelar para evitar bloqueo en ReadLineAsync)
             using var readCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             readCts.CancelAfter(_timeoutMs);
+            using var cancelReg = readCts.Token.Register(() =>
+            {
+                try { pipeClient.Dispose(); } catch { }
+            });
 
             var responseLine = await reader.ReadLineAsync(readCts.Token).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(responseLine))
@@ -64,7 +68,7 @@ public class RevitNamedPipeClient
             var response = JsonSerializer.Deserialize<IpcResponse>(responseLine);
             return response ?? IpcResponse.Fail(request.Id, "Respuesta devuelta por Revit no pudo ser deserializada.");
         }
-        catch (TimeoutException)
+        catch (Exception ex) when (ex is TimeoutException or OperationCanceledException or ObjectDisposedException)
         {
             return IpcResponse.Fail(request.Id, $"Tiempo de espera agotado ({_timeoutMs / 1000}s) esperando que Revit procese la transacción.");
         }

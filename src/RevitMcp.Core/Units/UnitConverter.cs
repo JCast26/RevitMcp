@@ -39,4 +39,14 @@ public static class UnitConverter
     /// Convierte pies cúbicos a metros cúbicos.
     /// </summary>
     public static double CubicFeetToCubicMeters(double cuFeet) => cuFeet * (MetersPerFoot * MetersPerFoot * MetersPerFoot);
+
+    /// <summary>
+    /// Convierte grados sexagesimales a radianes (unidad interna de Revit para ángulos).
+    /// </summary>
+    public static double DegreesToRadians(double degrees) => degrees * (Math.PI / 180.0);
+
+    /// <summary>
+    /// Convierte radianes a grados sexagesimales.
+    /// </summary>
+    public static double RadiansToDegrees(double radians) => radians * (180.0 / Math.PI);
 }

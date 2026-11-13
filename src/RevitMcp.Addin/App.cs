@@ -36,6 +36,15 @@ public class App : IExternalApplication
             IpcServer = new NamedPipeIpcServer(ExternalEventHandler);
             IpcServer.Start();
 
+            // Respaldo de Idling: si el sistema de eventos externos demora en despertar, drenar cola pendiente en Idling
+            application.Idling += (s, _) =>
+            {
+                if (ExternalEventHandler != null && ExternalEventHandler.HasPendingWork && s is UIApplication uiapp)
+                {
+                    ExternalEventHandler.Execute(uiapp);
+                }
+            };
+
             // 3. Crear / Integrar herramientas en la pestaña "BIM Suite"
             CreateRibbonUi(application);
 
@@ -198,6 +207,29 @@ public class App : IExternalApplication
 
             rebarPanel.AddItem(curbRebarButtonData);
         }
+
+        // 6. Agregar "Armado de capiteles" al panel "Acero de Refuerzo"
+        bool hasCapitalRebarBtn = rebarPanel.GetItems().Any(it => it.Name == "CreateCapitalRebarBtn");
+        if (!hasCapitalRebarBtn)
+        {
+            var capitalRebarButtonData = new PushButtonData(
+                "CreateCapitalRebarBtn",
+                "Armado de\ncapiteles",
+                assemblyPath,
+                typeof(Commands.CreateCapitalRebarCmd).FullName)
+            {
+                ToolTip = "Modela armadura vertical en caras con ganchos a 90° hacia el interior y estribos cerrados con ganchos a 135° en capiteles (Structural Columns).",
+                LongDescription = "Herramienta de BIM Suite para el armado automatizado de capiteles de categoría Structural Columns. Distribuye barras verticales perimetrales en las cuatro caras evitando duplicaciones en esquinas, con ganchos estándar a 90° en ambos extremos doblados hacia el interior, y confina con estribos cerrados con ganchos sísmicos a 135° al espaciamiento indicado."
+            };
+
+            var capitalIcon32 = LoadBitmapImage("Resources/Icons/capital_rebar_icon_32.png");
+            if (capitalIcon32 != null) capitalRebarButtonData.LargeImage = capitalIcon32;
+
+            var capitalIcon16 = LoadBitmapImage("Resources/Icons/capital_rebar_icon_16.png");
+            if (capitalIcon16 != null) capitalRebarButtonData.Image = capitalIcon16;
+
+            rebarPanel.AddItem(capitalRebarButtonData);
+        }
     }
 
     private static RibbonPanel GetOrCreatePanel(UIControlledApplication application, string tabName, string panelName)
@@ -250,6 +282,24 @@ public class ShowMcpStatusCmd : IExternalCommand
         bool isRunning = app?.IpcServer?.IsRunning ?? false;
         var doc = commandData.Application.ActiveUIDocument?.Document;
 
+        string logTail = string.Empty;
+        try
+        {
+            string logPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "RevitMcp",
+                "ipc.log");
+            if (File.Exists(logPath))
+            {
+                var lines = File.ReadAllLines(logPath);
+                logTail = "\n\nÚltimos eventos IPC:\n" + string.Join("\n", lines.TakeLast(5));
+            }
+        }
+        catch
+        {
+            // Ignorar error leyendo log
+        }
+
         var dialog = new TaskDialog("BIM Suite - Integración MCP")
         {
             MainInstruction = isRunning ? "Servidor MCP Activo" : "Servidor MCP Inactivo",
@@ -257,7 +307,8 @@ public class ShowMcpStatusCmd : IExternalCommand
                           $"Modelo Activo:\n{(doc != null ? doc.Title : "Ninguno abierto")}\n\n" +
                           (isRunning
                               ? "El servicio está conectado y disponible para interactuar con el modelo."
-                              : "El servicio local se encuentra actualmente inactivo."),
+                              : "El servicio local se encuentra actualmente inactivo.") +
+                          logTail,
             CommonButtons = TaskDialogCommonButtons.Close,
             DefaultButton = TaskDialogResult.Close,
             MainIcon = isRunning ? TaskDialogIcon.TaskDialogIconInformation : TaskDialogIcon.TaskDialogIconWarning
